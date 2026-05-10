@@ -4,7 +4,7 @@ Temp/
 Logs/
 obj/
 Builds/
-Build/
+/Build/
 UserSettings/
 
 # Visual Studio / JetBrains
