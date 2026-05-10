@@ -1,0 +1,21 @@
+# Unity 自動生成フォルダ（サイズが大きく再生成可能なため除外）
+Library/
+Temp/
+Logs/
+obj/
+Builds/
+Build/
+UserSettings/
+
+# Visual Studio / JetBrains
+.vs/
+*.csproj
+*.sln
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Unity meta ファイルは含める（アセット管理に必要）
+# *.meta は除外しない
