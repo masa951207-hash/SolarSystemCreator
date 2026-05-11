@@ -315,7 +315,9 @@ public class TitleScreen : MonoBehaviour
 
     private static Font GetFont()
     {
-        Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Font f = Resources.Load<Font>("Fonts/NotoSansJP");
+        if (f != null) return f;
+        f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (f == null) f = Resources.GetBuiltinResource<Font>("Arial.ttf");
         return f;
     }
