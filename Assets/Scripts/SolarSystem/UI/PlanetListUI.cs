@@ -48,10 +48,10 @@ public class PlanetListUI : MonoBehaviour
         var panelObj = new GameObject("Panel");
         panelObj.transform.SetParent(go.transform, false);
         panelRt                  = panelObj.AddComponent<RectTransform>();
-        panelRt.anchorMin        = Vector2.zero;
-        panelRt.anchorMax        = Vector2.zero;
-        panelRt.pivot            = Vector2.zero;
-        panelRt.anchoredPosition = new Vector2(10f, 10f);
+        panelRt.anchorMin        = new Vector2(1f, 0f);
+        panelRt.anchorMax        = new Vector2(1f, 0f);
+        panelRt.pivot            = new Vector2(1f, 0f);
+        panelRt.anchoredPosition = new Vector2(-10f, 10f);
         panelRt.sizeDelta        = new Vector2(PanelWidth, 200f);
 
         panelObj.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.10f, 0.82f);
