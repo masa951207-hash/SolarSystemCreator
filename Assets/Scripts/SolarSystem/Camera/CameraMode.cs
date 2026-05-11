@@ -119,7 +119,10 @@ public class CameraMode : MonoBehaviour
         if (earthBody == null) FindEarth();
         if (earthBody == null) return;
 
-        transform.position = earthBody.transform.position + Vector3.up * 0.5f;
+        // 地球の半径の外側（表面 + 余白0.3）にカメラを置く
+        // 0.5f だと球の内側に入り青一色になるため修正
+        float above = earthBody.data.radius + 0.3f;
+        transform.position = earthBody.transform.position + Vector3.up * above;
 
         // マウス右クリック or 1本指スワイプで視点回転
         if (Input.GetMouseButtonDown(1)) { isDragging = true;  lastMousePos = Input.mousePosition; }
@@ -315,15 +318,15 @@ public class CameraMode : MonoBehaviour
     // ────────────────────────────────────────────
     void OnGUI()
     {
-        // 天動説モードのオーバーレイ
+        // 天動説モードのオーバーレイ（上部モードテキストの下 y=68 以降に配置）
         if (CurrentMode == Mode.Geocentric)
         {
-            GUI.Label(new Rect(10, 10, 600, 22),
+            GUI.Label(new Rect(10, 68, 600, 22),
                 "[ 天動説モード - 地球中心ビュー ]", boldLabelStyle);
-            GUI.Label(new Rect(10, 30, 600, 18),
+            GUI.Label(new Rect(10, 90, 600, 18),
                 "地球が画面中心に固定。惑星の見かけの動き（逆行運動）が観察できます。", labelStyle);
-            GUI.Label(new Rect(10, 48, 600, 18),
-                "右クリック+ドラッグ: 視点回転　スクロール: ズーム　[G]: 俯瞰に戻る", labelStyle);
+            GUI.Label(new Rect(10, 108, 600, 18),
+                "スワイプ: 視点回転　ピンチ/スクロール: ズーム　[G]: 俯瞰に戻る", labelStyle);
             return;
         }
 
@@ -397,20 +400,26 @@ public class CameraMode : MonoBehaviour
 
         GUI.color = Color.white;
 
-        // ヘッダ
-        GUI.Label(new Rect(10, 10, 500, 22),
+        // ヘッダ（上部モードテキストの下 y=68 以降に配置）
+        GUI.Label(new Rect(10, 68, 500, 22),
             "[ 地球視点 - 地上観測モード ]", boldLabelStyle);
-        GUI.Label(new Rect(10, 30, 500, 18),
-            "右クリック+ドラッグ: 視点回転　[E]: 俯瞰モードに戻る", labelStyle);
+        GUI.Label(new Rect(10, 90, 500, 18),
+            "スワイプ: 視点回転　[E]: 俯瞰モードに戻る", labelStyle);
     }
 
     // ────────────────────────────────────────────
     //  公開 API
     // ────────────────────────────────────────────
 
+    /// <summary>軌道クリアボタンから呼ぶ。天動説トレイルだけを消去する。</summary>
+    public void ClearGeoTrailsPublic() => ClearGeoTrails();
+
     /// <summary>リセット時に呼ぶ。earthBody 参照をクリアしTopDownに戻す。</summary>
     public void OnReset()
     {
+        // earthBody を null にする前に表示を戻す
+        if (CurrentMode == Mode.EarthView)
+            SetEarthRendererVisible(true);
         if (CurrentMode == Mode.Geocentric)
             ShowHeliocentricTrails(true);
         ClearGeoTrails();
@@ -421,6 +430,10 @@ public class CameraMode : MonoBehaviour
 
     public void SetMode(Mode mode)
     {
+        // 地球視点から離脱：地球の Renderer を元に戻す
+        if (CurrentMode == Mode.EarthView && mode != Mode.EarthView)
+            SetEarthRendererVisible(true);
+
         // 天動説モードから離脱：地動説トレイルを復元し天動説トレイルを隠す
         if (CurrentMode == Mode.Geocentric && mode != Mode.Geocentric)
         {
@@ -434,6 +447,8 @@ public class CameraMode : MonoBehaviour
         {
             FindEarth();
             InitEarthViewDirection();
+            // 地球球体の内側から描画しないよう Renderer を非表示にする
+            SetEarthRendererVisible(false);
         }
         else if (mode == Mode.Geocentric)
         {
@@ -441,9 +456,17 @@ public class CameraMode : MonoBehaviour
             geoOrbitPitch = 72f;
             geoOrbitYaw   = 0f;
             geoOrbitDist  = 50f;
-            ClearGeoTrails();             // 前回の天動説トレイルをリセット
-            ShowHeliocentricTrails(false); // 地動説トレイルを隠す
+            ClearGeoTrails();
+            ShowHeliocentricTrails(false);
         }
+    }
+
+    // EarthView 中だけ地球の Renderer を隠す
+    private void SetEarthRendererVisible(bool visible)
+    {
+        if (earthBody == null) return;
+        var r = earthBody.GetComponent<Renderer>();
+        if (r != null) r.enabled = visible;
     }
 
     /// <summary>[E] キー: TopDown ↔ EarthView トグル</summary>

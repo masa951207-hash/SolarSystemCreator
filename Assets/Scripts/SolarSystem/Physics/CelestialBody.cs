@@ -10,8 +10,9 @@ public class CelestialBody : MonoBehaviour
     public PlanetData data;
     public bool isSun = false;
 
-    public Vector3 Velocity   { get; private set; }
-    public float   Mass       => data.mass;
+    public Vector3 Velocity      { get; private set; }
+    public float   Mass          => data.mass;
+    public float   RotationCount { get; private set; } = 0f;
 
     private Vector3           acceleration;
     private LineRenderer      orbitLine;
@@ -119,7 +120,12 @@ public class CelestialBody : MonoBehaviour
     void Update()
     {
         if (data != null)
-            transform.Rotate(Vector3.up, data.rotationSpeed * Time.deltaTime, Space.World);
+        {
+            float delta = data.rotationSpeed * Time.deltaTime;
+            transform.Rotate(Vector3.up, delta, Space.World);
+            if (!isSun)
+                RotationCount += Mathf.Abs(delta) / 360f;
+        }
     }
 
     // ────────────────────────────────────────────

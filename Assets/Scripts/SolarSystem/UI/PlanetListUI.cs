@@ -4,7 +4,7 @@ using System.Text;
 
 /// <summary>
 /// 現在の天体一覧を画面左下に表示する。
-/// GravitySystem に登録された天体（合体・消滅も反映）＋視覚専用の月を表示。
+/// 天体名・質量・自転回転数を表示。
 /// </summary>
 public class PlanetListUI : MonoBehaviour
 {
@@ -12,11 +12,11 @@ public class PlanetListUI : MonoBehaviour
     private Text          listText;
     private Font          uiFont;
 
-    private const float PanelWidth   = 170f;
-    private const float LineHeight   = 14f;
-    private const float HeaderHeight = 18f;
-    private const float PadV         = 8f;
-    private const float PadH         = 8f;
+    private const float PanelWidth   = 330f;
+    private const float LineHeight   = 30f;
+    private const float HeaderHeight = 36f;
+    private const float PadV         = 10f;
+    private const float PadH         = 10f;
 
     void Start()
     {
@@ -42,9 +42,9 @@ public class PlanetListUI : MonoBehaviour
         var scaler = go.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight  = 0f;
         go.AddComponent<GraphicRaycaster>();
 
-        // パネル背景（左下アンカー）
         var panelObj = new GameObject("Panel");
         panelObj.transform.SetParent(go.transform, false);
         panelRt                  = panelObj.AddComponent<RectTransform>();
@@ -56,7 +56,6 @@ public class PlanetListUI : MonoBehaviour
 
         panelObj.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.10f, 0.82f);
 
-        // テキスト
         var textObj = new GameObject("Text");
         textObj.transform.SetParent(panelObj.transform, false);
         var textRt       = textObj.AddComponent<RectTransform>();
@@ -66,10 +65,11 @@ public class PlanetListUI : MonoBehaviour
         textRt.offsetMax = new Vector2(-PadH, -PadV);
 
         listText                    = textObj.AddComponent<Text>();
-        listText.fontSize        = 11;
+        listText.fontSize        = 22;
         listText.color           = new Color(0.9f, 0.9f, 0.9f);
         listText.alignment       = TextAnchor.UpperLeft;
         listText.supportRichText = true;
+        listText.lineSpacing     = 1.2f;
         if (uiFont != null) listText.font = uiFont;
     }
 
@@ -96,22 +96,43 @@ public class PlanetListUI : MonoBehaviour
                           : body.data.planetName == "Halley"  ? "[★]"
                           :                                     "[ ]";
 
-            sb.Append($"<color=#{hex}>{marker}</color> {body.data.planetName}\n");
+            // ④ 質量表示
+            string massStr = body.isSun
+                ? $"{body.data.mass:F0}"
+                : FormatMass(body.data.mass);
+
+            if (body.isSun)
+            {
+                sb.Append($"<color=#{hex}>{marker}</color> {body.data.planetName}  M={massStr}\n");
+            }
+            else
+            {
+                // ⑥ 自転回転数
+                string rotStr = $"{body.RotationCount:F1}";
+                sb.Append($"<color=#{hex}>{marker}</color> {body.data.planetName}  M={massStr}  ↺{rotStr}\n");
+            }
         }
 
         // 月（GravitySystem 未登録・視覚専用）
         if (hasMoon)
         {
             string moonHex = ColorUtility.ToHtmlStringRGB(PlanetFactory.MoonColor);
-            sb.Append($"<color=#{moonHex}>[ ]</color> Moon\n");
+            sb.Append($"<color=#{moonHex}>[ ]</color> Moon  視覚専用\n");
         }
 
         listText.text = sb.ToString();
 
-        // パネル高さを天体数に合わせて自動調整
         float h = HeaderHeight + total * LineHeight + PadV * 2f;
         if (panelRt != null)
             panelRt.sizeDelta = new Vector2(PanelWidth, Mathf.Max(h, 40f));
+    }
+
+    // G2フォーマット（有効数字2桁）
+    private static string FormatMass(float mass)
+    {
+        if (mass >= 0.01f)   return $"{mass:F4}";
+        if (mass >= 0.0001f) return $"{mass:F6}";
+        return $"{mass:E1}";
     }
 
     private static Font GetFont()

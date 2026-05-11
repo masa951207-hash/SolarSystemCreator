@@ -31,13 +31,20 @@ public class SimulationManager : MonoBehaviour
     public int PlanetCount => GravitySystem.Instance != null
         ? GravitySystem.Instance.GetBodyCount() : 0;
 
-    /// <summary>シミュレーション経過時間を人間可読な文字列に変換</summary>
+    // T = 2π√(r³/GM) = 2π√(15³/100) ≈ 36.51 sim秒 = 1地球年
+    public const float EarthYearSeconds = 36.51f;
+
+    /// <summary>シミュレーション経過時間を人間可読な文字列に変換（年優先）</summary>
     public string GetFormattedTime()
     {
-        float t = SimulationTime;
-        if (t < 3600f)   return $"{t:F0} sec";
-        if (t < 86400f)  return $"{t / 3600f:F1} hr";
-        if (t < 2592000f) return $"{t / 86400f:F1} days";
-        return $"{t / 2592000f:F1} months";
+        float years = SimulationTime / EarthYearSeconds;
+        if (years >= 1f)
+        {
+            if (years < 1000f) return $"{years:F1} 年";
+            return $"{years:F0} 年";
+        }
+        float days = SimulationTime / (EarthYearSeconds / 365.25f);
+        if (days >= 1f) return $"{days:F0} 日";
+        return $"{SimulationTime:F0} 秒";
     }
 }

@@ -312,38 +312,31 @@ public class PlanetFactory : MonoBehaviour
 
         var renderer = obj.GetComponent<Renderer>();
 
-        // Shader.Find はビルド環境によって失敗するため、
-        // まず Shader.Find を試み、失敗した場合は renderer.material
-        // （CreatePrimitive のデフォルトマテリアルのインスタンスコピー）を使う。
-        // デフォルトマテリアルのシェーダはビルドに必ず含まれるため安全。
+        // 2D URP WebGL ビルドでは 3D シェーダがストリップされるため、
+        // 2D スプライト用シェーダ（常にビルドに含まれる）を最初に試みる。
+        Shader shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default")
+                     ?? Shader.Find("Sprites/Default")
+                     ?? Shader.Find("Universal Render Pipeline/Unlit")
+                     ?? Shader.Find("Unlit/Color")
+                     ?? Shader.Find("Universal Render Pipeline/Lit");
 
-        if (unlit)
+        Color c = unlit ? color * 2f : color;
+
+        if (shader != null)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
-                         ?? Shader.Find("Unlit/Color");
-            if (shader != null)
-            {
-                var mat = new Material(shader);
-                mat.SetColor("_BaseColor", color * 2f);
-                mat.SetColor("_Color",     color * 2f);
-                renderer.material = mat;
-                return obj;
-            }
-            // フォールバック: 既存マテリアルにEmissionを付与して明るく見せる
-            var m = renderer.material;
-            m.color = color * 1.5f;
-            m.SetColor("_BaseColor", color * 1.5f);
-            m.SetColor("_Color",     color * 1.5f);
-            m.EnableKeyword("_EMISSION");
-            m.SetColor("_EmissionColor", color);
+            var mat = new Material(shader);
+            mat.SetColor("_BaseColor", c);
+            mat.SetColor("_Color",     c);
+            renderer.material = mat;
             return obj;
         }
 
-        // 通常惑星: renderer.material (sharedMaterial の新インスタンス) に直接色を設定
-        var mat2 = renderer.material;
-        mat2.color = color;
-        mat2.SetColor("_BaseColor", color);
-        mat2.SetColor("_Color",     color);
+        // 全シェーダが見つからない場合の最終フォールバック
+        var m = renderer.material;
+        m.color = c;
+        m.SetColor("_BaseColor", c);
+        m.SetColor("_Color",     c);
+        if (unlit) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", color); }
         return obj;
     }
 }

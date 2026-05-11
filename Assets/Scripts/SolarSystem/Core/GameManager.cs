@@ -6,16 +6,45 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
+    private bool simulationStarted = false;
+
     void Awake()
     {
         if (Instance == null) Instance = this;
         else { Destroy(gameObject); return; }
+
+        // スマホ向け：横画面固定・スリープ無効
+        Screen.orientation  = ScreenOrientation.LandscapeLeft;
+        Screen.sleepTimeout = SleepTimeout.NeverSleep;
+
         EnsureSystems();
     }
 
     void Start()
     {
         SetupCamera();
+
+        // ボタン入力を受け付けるために EventSystem をタイトル画面より先に作成
+        EnsureEventSystem();
+
+        // ⑦ タイトル画面を表示し、シミュレーション開始はユーザー操作まで待つ
+        var titleGo = new GameObject("TitleScreen");
+        titleGo.AddComponent<TitleScreen>();
+    }
+
+    private void EnsureEventSystem()
+    {
+        if (FindFirstObjectByType<EventSystem>() != null) return;
+        var esGo = new GameObject("EventSystem");
+        esGo.AddComponent<EventSystem>();
+        esGo.AddComponent<StandaloneInputModule>();
+    }
+
+    /// <summary>⑦ タイトル画面の「スタート」ボタンから呼ばれる</summary>
+    public void StartSimulationFromTitle()
+    {
+        if (simulationStarted) return;
+        simulationStarted = true;
 
         try
         {
@@ -117,6 +146,7 @@ public class GameManager : MonoBehaviour
     {
         var uiRoot = new GameObject("UIRoot");
 
+        // EventSystem は EnsureEventSystem() で既に作成済み。念のため重複チェック。
         if (FindFirstObjectByType<EventSystem>() == null)
         {
             var esGo = new GameObject("EventSystem");
@@ -128,6 +158,19 @@ public class GameManager : MonoBehaviour
         new GameObject("TimeUI",            typeof(TimeUI)).transform.SetParent(uiRoot.transform);
         new GameObject("CreatePlanetPanel", typeof(CreatePlanetPanel)).transform.SetParent(uiRoot.transform);
         new GameObject("PlanetListUI",      typeof(PlanetListUI)).transform.SetParent(uiRoot.transform);
+    }
+
+    // ────────────────────────────────────────────
+    //  軌道線クリア：全天体の軌道トレイルを消去
+    // ────────────────────────────────────────────
+    public static void ClearAllOrbitTrails()
+    {
+        if (GravitySystem.Instance != null)
+            foreach (var body in GravitySystem.Instance.GetBodies())
+                if (body != null) body.ClearTrail();
+
+        // 天動説トレイルも消去
+        Camera.main?.GetComponent<CameraMode>()?.ClearGeoTrailsPublic();
     }
 
     // ────────────────────────────────────────────

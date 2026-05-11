@@ -2,13 +2,15 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 時間制御UI + シミュレーション統計表示。
-/// 画面右上に速度ボタン、ポーズボタン、情報テキストを自動生成する。
+/// 時間制御UI + モード表示 + 統計。
+/// ① 画面上部中央に現在のモード（地動説/天動説/地球視点）を大きく表示。
+/// ② ボタンを大きめにしてスマホでも判読できるよう調整。
 /// </summary>
 public class TimeUI : MonoBehaviour
 {
     private Canvas   canvas;
     private Text     infoText;
+    private Text     modeText;       // ① 上部中央モード表示
     private Button[] speedButtons = new Button[4];
     private Button   pauseButton;
     private Text     pauseLabel;
@@ -18,16 +20,25 @@ public class TimeUI : MonoBehaviour
     private Text     geoModeLabel;
     private Button   resetButton;
     private Button   alignButton;
+    private Button   clearTrailButton;
 
     private Font uiFont;
 
-    private static readonly Color NormalColor    = new Color(0.15f, 0.15f, 0.2f,  0.85f);
-    private static readonly Color SelectedColor  = new Color(0.15f, 0.55f, 0.85f, 0.95f);
-    private static readonly Color PauseColor     = new Color(0.7f,  0.3f,  0.1f,  0.9f);
-    private static readonly Color EarthViewColor  = new Color(0.1f,  0.5f,  0.25f, 0.9f);
-    private static readonly Color GeocentricColor = new Color(0.55f, 0.35f, 0.10f, 0.9f);
-    private static readonly Color ResetColor     = new Color(0.7f,  0.15f, 0.15f, 0.95f);
-    private static readonly Color AlignColor     = new Color(0.2f,  0.55f, 0.30f, 0.95f);
+    private static readonly Color NormalColor     = new Color(0.15f, 0.15f, 0.20f, 0.88f);
+    private static readonly Color SelectedColor   = new Color(0.15f, 0.55f, 0.85f, 0.95f);
+    private static readonly Color PauseColor      = new Color(0.70f, 0.30f, 0.10f, 0.92f);
+    private static readonly Color EarthViewColor  = new Color(0.10f, 0.50f, 0.25f, 0.92f);
+    private static readonly Color GeocentricColor = new Color(0.55f, 0.35f, 0.10f, 0.92f);
+    private static readonly Color ResetColor      = new Color(0.70f, 0.15f, 0.15f, 0.95f);
+    private static readonly Color AlignColor      = new Color(0.20f, 0.55f, 0.30f, 0.95f);
+    private static readonly Color ClearTrailColor = new Color(0.25f, 0.35f, 0.60f, 0.95f);
+
+    // ① モード名マッピング
+    private static readonly string[] ModeNames = {
+        "地動説  ( 太陽中心 )",
+        "地球視点  ( 地上観測 )",
+        "天動説  ( 地球中心 )"
+    };
 
     void Start()
     {
@@ -39,29 +50,24 @@ public class TimeUI : MonoBehaviour
     {
         RefreshHighlight();
         UpdateInfoText();
+        UpdateModeText();
 
-        // キーボードショートカット
         if (Input.GetKeyDown(KeyCode.Space))  SimulationManager.Instance?.TogglePause();
         if (Input.GetKeyDown(KeyCode.Alpha1)) TimeController.Instance?.SetSpeed(0);
         if (Input.GetKeyDown(KeyCode.Alpha2)) TimeController.Instance?.SetSpeed(1);
         if (Input.GetKeyDown(KeyCode.Alpha3)) TimeController.Instance?.SetSpeed(2);
         if (Input.GetKeyDown(KeyCode.Alpha4)) TimeController.Instance?.SetSpeed(3);
 
-        // ⑤ [E] で地球視点 / 俯瞰モードトグル
         if (Input.GetKeyDown(KeyCode.E))
             Camera.main?.GetComponent<CameraMode>()?.ToggleMode();
-
-        // [G] で天動説モード / 俯瞰モードトグル
         if (Input.GetKeyDown(KeyCode.G))
             Camera.main?.GetComponent<CameraMode>()?.ToggleGeocentricMode();
-
-        // [R] でリセット
         if (Input.GetKeyDown(KeyCode.R))
             GameManager.ResetSimulation();
-
-        // [A] で惑星直列
         if (Input.GetKeyDown(KeyCode.A))
             GameManager.AlignPlanets();
+        if (Input.GetKeyDown(KeyCode.C))
+            GameManager.ClearAllOrbitTrails();
     }
 
     // ────────────────────────────────────────────
@@ -77,70 +83,81 @@ public class TimeUI : MonoBehaviour
         var scaler = go.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight  = 0f;
         go.AddComponent<GraphicRaycaster>();
 
-        // ── 速度ボタン群（右上）──────────────────
-        for (int i = 0; i < 4; i++)
+        // ── ① 上部中央モードテキスト ─────────────────
+        modeText = MakeText(go, "地動説  ( 太陽中心 )",
+            new Vector2(0f, -10f),
+            new Vector2(600f, 50f),
+            new Vector2(0.5f, 1f),
+            TextAnchor.MiddleCenter, 24, bold: true);
+        modeText.color = new Color(0.95f, 0.92f, 0.75f);
+
+        // ────────────────────────────────────────────
+        // ② ボタン — 行1（右上）: 速度 + ポーズ
+        //    ボタンサイズを大きくし、日本語が収まるよう幅確保
+        // ────────────────────────────────────────────
+        float bH = 44f;
+
+        // 速度ボタン群（右から: PAUSE → 1000x → 100x → 10x → 1x）
+        pauseButton = MakeButton(go, "▶ PLAY",
+            new Vector2(-10f, -10f), new Vector2(100f, bH), new Vector2(1f, 1f));
+        pauseButton.onClick.AddListener(() => SimulationManager.Instance?.TogglePause());
+        pauseLabel = pauseButton.GetComponentInChildren<Text>();
+
+        float[] speedW = { 55f, 60f, 65f, 75f };
+        float   sx     = -115f;
+        for (int i = 3; i >= 0; i--)
         {
             int idx = i;
             speedButtons[i] = MakeButton(go,
                 TimeController.SpeedLabels[i],
-                new Vector2(-230f + i * 55f, -10f),
-                new Vector2(50f, 28f),
+                new Vector2(sx, -10f),
+                new Vector2(speedW[i], bH),
                 new Vector2(1f, 1f));
             speedButtons[i].onClick.AddListener(() => TimeController.Instance?.SetSpeed(idx));
+            sx -= speedW[i] + 5f;
         }
 
-        // ── ポーズボタン ─────────────────────────
-        pauseButton = MakeButton(go, "▶ PLAY",
-            new Vector2(-10f, -10f),
-            new Vector2(70f, 28f),
-            new Vector2(1f, 1f));
-        pauseButton.onClick.AddListener(() => SimulationManager.Instance?.TogglePause());
-        pauseLabel = pauseButton.GetComponentInChildren<Text>();
+        // ── 行2（右上 2段目）: カメラモード + リセット + 直列 ──
+        float y2 = -10f - bH - 6f;
 
-        // ── ⑤ 地球視点ボタン（速度ボタン左） ──────
+        resetButton = MakeButton(go, "[R] リセット",
+            new Vector2(-10f, y2), new Vector2(120f, bH), new Vector2(1f, 1f));
+        resetButton.onClick.AddListener(GameManager.ResetSimulation);
+        resetButton.GetComponent<Image>().color = ResetColor;
+
+        alignButton = MakeButton(go, "[A] 直列",
+            new Vector2(-135f, y2), new Vector2(100f, bH), new Vector2(1f, 1f));
+        alignButton.onClick.AddListener(GameManager.AlignPlanets);
+        alignButton.GetComponent<Image>().color = AlignColor;
+
+        // 軌道クリアボタン
+        clearTrailButton = MakeButton(go, "[C] 軌道クリア",
+            new Vector2(-240f, y2), new Vector2(120f, bH), new Vector2(1f, 1f));
+        clearTrailButton.onClick.AddListener(GameManager.ClearAllOrbitTrails);
+        clearTrailButton.GetComponent<Image>().color = ClearTrailColor;
+
         camModeButton = MakeButton(go, "[E] 地球視点",
-            new Vector2(-295f, -10f),
-            new Vector2(60f, 28f),
-            new Vector2(1f, 1f));
+            new Vector2(-365f, y2), new Vector2(135f, bH), new Vector2(1f, 1f));
         camModeButton.onClick.AddListener(() =>
             Camera.main?.GetComponent<CameraMode>()?.ToggleMode());
         camModeLabel = camModeButton.GetComponentInChildren<Text>();
 
-        // ── 天動説ボタン（地球視点ボタン左）──────
         geoModeButton = MakeButton(go, "[G] 天動説",
-            new Vector2(-360f, -10f),
-            new Vector2(60f, 28f),
-            new Vector2(1f, 1f));
+            new Vector2(-505f, y2), new Vector2(125f, bH), new Vector2(1f, 1f));
         geoModeButton.onClick.AddListener(() =>
             Camera.main?.GetComponent<CameraMode>()?.ToggleGeocentricMode());
         geoModeLabel = geoModeButton.GetComponentInChildren<Text>();
 
-        // ── リセットボタン（右上2段目の右端）─────────
-        resetButton = MakeButton(go, "[R] リセット",
-            new Vector2(-10f, -46f),
-            new Vector2(90f, 28f),
-            new Vector2(1f, 1f));
-        resetButton.onClick.AddListener(GameManager.ResetSimulation);
-        var resetImg = resetButton.GetComponent<Image>();
-        if (resetImg != null) resetImg.color = ResetColor;
-
-        // ── 惑星直列ボタン（リセット左隣）────────────
-        alignButton = MakeButton(go, "[A] 直列",
-            new Vector2(-105f, -46f),
-            new Vector2(90f, 28f),
-            new Vector2(1f, 1f));
-        alignButton.onClick.AddListener(GameManager.AlignPlanets);
-        var alignImg = alignButton.GetComponent<Image>();
-        if (alignImg != null) alignImg.color = AlignColor;
-
         // ── 統計テキスト ─────────────────────────
+        float y3 = y2 - bH - 6f;
         infoText = MakeText(go, "",
-            new Vector2(-10f, -82f),
-            new Vector2(230f, 110f),
+            new Vector2(-10f, y3),
+            new Vector2(250f, 120f),
             new Vector2(1f, 1f),
-            TextAnchor.UpperRight, 11);
+            TextAnchor.UpperRight, 13);
 
         RefreshHighlight();
     }
@@ -166,7 +183,6 @@ public class TimeUI : MonoBehaviour
         var pb = pauseButton.GetComponent<Image>();
         if (pb != null) pb.color = paused ? PauseColor : NormalColor;
 
-        // カメラモードボタンの色更新
         var camMode = Camera.main?.GetComponent<CameraMode>();
         if (camMode != null)
         {
@@ -184,6 +200,22 @@ public class TimeUI : MonoBehaviour
         }
     }
 
+    // ① 上部中央のモードラベル更新
+    private void UpdateModeText()
+    {
+        if (modeText == null) return;
+        var camMode = Camera.main?.GetComponent<CameraMode>();
+        if (camMode == null) return;
+
+        modeText.text = camMode.CurrentMode switch
+        {
+            CameraMode.Mode.EarthView  => "◉  地球視点  ( 地上観測 )",
+            CameraMode.Mode.Geocentric => "◉  天動説  ( 地球中心 )",
+            _                          => "◉  地動説  ( 太陽中心 )"
+        };
+    }
+
+    // ⑤ 統計テキスト（経過年数含む）
     private void UpdateInfoText()
     {
         if (infoText == null) return;
@@ -191,16 +223,10 @@ public class TimeUI : MonoBehaviour
         var grav = GravitySystem.Instance;
         if (sim == null || grav == null) return;
 
-        var camMode = Camera.main?.GetComponent<CameraMode>();
-        string modeStr = camMode?.CurrentMode == CameraMode.Mode.EarthView
-            ? "地球視点" : "俯瞰";
-
         infoText.text =
             $"天体数 : {grav.GetBodyCount()}/30\n" +
-            $"経過時間: {sim.GetFormattedTime()}\n" +
-            $"速度   : {TimeController.Instance?.SimulationSpeed:F0}x\n" +
-            $"視点   : {modeStr}\n" +
-            $"\n[Space] ポーズ  [1-4] 速度\n[T] 惑星パネル  [E] 地球視点\n[G] 天動説  [A] 直列  [R] リセット";
+            $"経過   : {sim.GetFormattedTime()}\n" +
+            $"速度   : {TimeController.Instance?.SimulationSpeed:F0}x";
     }
 
     // ────────────────────────────────────────────
@@ -230,12 +256,19 @@ public class TimeUI : MonoBehaviour
         txtRt.anchorMin = Vector2.zero;
         txtRt.anchorMax = Vector2.one;
         txtRt.sizeDelta = Vector2.zero;
+        txtRt.offsetMin = new Vector2(4, 2);
+        txtRt.offsetMax = new Vector2(-4, -2);
 
         var txt = txtObj.AddComponent<Text>();
-        txt.text      = label;
-        txt.fontSize  = 11;
-        txt.color     = Color.white;
-        txt.alignment = TextAnchor.MiddleCenter;
+        txt.text                   = label;
+        txt.fontSize               = 18;
+        txt.color                  = Color.white;
+        txt.alignment              = TextAnchor.MiddleCenter;
+        txt.resizeTextForBestFit   = true;
+        txt.resizeTextMinSize      = 10;
+        txt.resizeTextMaxSize      = 20;
+        txt.horizontalOverflow     = HorizontalWrapMode.Wrap;
+        txt.verticalOverflow       = VerticalWrapMode.Overflow;
         if (uiFont != null) txt.font = uiFont;
 
         return btn;
@@ -243,7 +276,7 @@ public class TimeUI : MonoBehaviour
 
     private Text MakeText(GameObject parent, string content,
         Vector2 anchoredPos, Vector2 size, Vector2 anchor,
-        TextAnchor alignment = TextAnchor.MiddleLeft, int fontSize = 12)
+        TextAnchor alignment = TextAnchor.MiddleLeft, int fontSize = 13, bool bold = false)
     {
         var obj = new GameObject("InfoText");
         obj.transform.SetParent(parent.transform, false);
@@ -257,7 +290,8 @@ public class TimeUI : MonoBehaviour
         var txt = obj.AddComponent<Text>();
         txt.text      = content;
         txt.fontSize  = fontSize;
-        txt.color     = new Color(0.9f, 0.9f, 0.9f, 0.85f);
+        txt.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        txt.color     = new Color(0.9f, 0.9f, 0.9f, 0.92f);
         txt.alignment = alignment;
         if (uiFont != null) txt.font = uiFont;
 
